@@ -1,9 +1,8 @@
-# app.py – NutriCare AI v25 – Transparent chips, dark input, sidebar navigation
+# app.py – NutriCare AI v26 – No pygame, uses st.audio for TTS
 import os, sys, time, pandas as pd, io, urllib.parse, re
 from datetime import datetime
 import streamlit as st
 from PIL import Image
-import pygame
 import altair as alt
 from dotenv import load_dotenv
 
@@ -25,7 +24,7 @@ from utils.utils import ensure_dir, timestamp, get_logger
 from utils.language_detector import LANGUAGE_CODES
 from utils.api_helpers import search_youtube_video, get_spoonacular_nutrition, search_ayurvedic_books
 from chat_db import init_db, save_chat, get_all_chats, clear_all_chats
-from gtts import gTTS
+from voice.voice import get_speech_bytes
 
 # ---------- Translation ----------
 try:
@@ -60,13 +59,10 @@ except ImportError:
 logger = get_logger("app")
 init_db()
 
-# -------------------- INIT PYGAME MIXER --------------------
-pygame.mixer.init()
-
 # -------------------- PAGE CONFIG --------------------
 st.set_page_config(page_title="🌿 NutriCare AI", page_icon="🌿", layout="wide")
 
-# -------------------- CSS (updated: transparent chips, dark input) --------------------
+# -------------------- CSS (unchanged) --------------------
 st.markdown("""
 <style>
     .stApp {
@@ -81,7 +77,6 @@ st.markdown("""
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
     }
-    /* Sidebar */
     section[data-testid="stSidebar"] {
         background-color: #06402b !important;
         backdrop-filter: none !important;
@@ -89,7 +84,6 @@ st.markdown("""
         color: #d0f0d0;
     }
     .stSidebar hr { border-top: 1px solid #4caf50 !important; opacity: 0.6; margin: 10px 0; }
-    /* Sidebar buttons */
     .stSidebar .stButton > button {
         background: linear-gradient(135deg, #f97316, #eab308, #22c55e) !important;
         background-size: 200% 200% !important;
@@ -107,7 +101,6 @@ st.markdown("""
         transform: scale(1.02) !important;
         box-shadow: 0 8px 25px rgba(234, 179, 8, 0.6) !important;
     }
-    /* Main header */
     .main-header {
         text-align: center;
         margin-bottom: 1.5rem;
@@ -126,7 +119,6 @@ st.markdown("""
         margin: 0;
         letter-spacing: 0.5px;
     }
-    /* Answer card */
     .answer-card {
         background-color: #ffffff;
         color: #1a1a1a;
@@ -154,7 +146,6 @@ st.markdown("""
         font-size: 0.75rem;
         border: 1px solid #2e7d32;
     }
-    /* "Try asking" chips – transparent, green border */
     .chip-btn {
         background: transparent !important;
         border: 1px solid #4caf50 !important;
@@ -176,7 +167,6 @@ st.markdown("""
         border-color: #66bb6a !important;
         transform: scale(1.02);
     }
-    /* Override Streamlit default button styles for chips */
     .stButton > button {
         background: linear-gradient(135deg, #f97316, #eab308, #22c55e) !important;
         background-size: 200% 200% !important;
@@ -199,7 +189,6 @@ st.markdown("""
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
     }
-    /* Dark text input – remove white box */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea {
         background-color: #1a2a1a !important;
@@ -213,7 +202,6 @@ st.markdown("""
         border-color: #4caf50 !important;
         box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2) !important;
     }
-    /* Other elements */
     .logo-container {
         display: flex;
         align-items: center;
@@ -308,36 +296,27 @@ def clean_text(text):
     return '\n'.join(cleaned)
 
 def format_response(text):
-    """Remove all heading symbols (##, ###) and convert to bold, remove Acknowledgement."""
+    """Remove all heading symbols and convert to bold, remove Acknowledgement."""
     lines = text.split('\n')
     new_lines = []
     for line in lines:
-        # Remove "## Acknowledgement" from start of line (keeping the rest)
         if re.match(r'^#+\s*Acknowledgement\s*', line.strip(), re.IGNORECASE):
             cleaned = re.sub(r'^#+\s*Acknowledgement\s*', '', line, flags=re.IGNORECASE)
             if cleaned.strip():
                 new_lines.append(cleaned)
             continue
-        
-        # Remove "## Key Information" and "## Practical Tips" heading symbols
-        # Convert to bold: **Key Information**
         if re.match(r'^#+\s*Key Information\s*$', line.strip(), re.IGNORECASE):
             new_lines.append('**Key Information**')
             continue
         if re.match(r'^#+\s*Practical Tips\s*$', line.strip(), re.IGNORECASE):
             new_lines.append('**Practical Tips**')
             continue
-        
-        # Also handle **Acknowledgement:** (bold variant)
         if re.match(r'^\*\*Acknowledgement\*\*:?\s*$', line.strip(), re.IGNORECASE):
             continue
-        
-        # Remove numbering and convert to bold for other headings
         cleaned = re.sub(r'^\s*\d+\.\s*\*\*?([^*]+)\*\*?:\s*', r'**\1:** ', line)
         if cleaned == line:
             cleaned = re.sub(r'^\s*\d+\.\s*([^:]+):\s*', r'**\1:** ', cleaned)
         new_lines.append(cleaned)
-    
     result = '\n'.join(new_lines)
     return clean_text(result)
 
@@ -359,18 +338,13 @@ def create_multi_color_chart(data_dict, title="Nutrient Values"):
     ).configure_title(color='#a5d6a7', fontSize=16)
     return chart
 
-# Remove pygame import and init
-# Remove import pygame
-# Remove pygame.mixer.init()
-
+# ---------- TTS Functions (no pygame) ----------
 def speak_text(text, lang="en"):
     if not text.strip():
         return
     try:
-        from voice.voice import get_speech_bytes
         audio_bytes = get_speech_bytes(text, lang=lang)
         if audio_bytes:
-            # Store audio in session state and display
             st.session_state.audio_bytes = audio_bytes
             st.session_state.audio_text = text
             st.session_state.is_speaking = True
@@ -383,10 +357,7 @@ def stop_speech():
     st.session_state.is_speaking = False
     st.rerun()
 
-def stop_speech():
-    pygame.mixer.music.stop()
-    st.session_state.is_speaking = False
-
+# ---------- PDF download ----------
 def download_pdf(content, filename):
     if not PDF_AVAILABLE:
         st.download_button("📥 Download (as .txt)", data=content, file_name=filename.replace(".pdf", ".txt"), mime="text/plain")
@@ -501,7 +472,7 @@ with st.sidebar:
         <span class="tech-item">🔹 Framework: Streamlit</span><br>
         <span class="tech-item">🔹 Image AI: CLIP</span><br>
         <span class="tech-item">🔹 Translation: Google Translate</span><br>
-        <span class="tech-item">🔹 TTS: gTTS + pygame</span><br>
+        <span class="tech-item">🔹 TTS: gTTS (via st.audio)</span><br>
         <span class="tech-item">🔹 PDF: ReportLab</span><br>
         <span class="tech-item">🔹 APIs: Groq, Google Translate, YouTube Data, Spoonacular, Google Custom Search</span><br>
     </div>
@@ -577,6 +548,8 @@ if page == "Medical Chat":
                 with col_sp1:
                     if st.button("🔊 Speak", key="speak_medical"):
                         speak_text(answer, lang_code)
+                        if st.session_state.get("audio_bytes"):
+                            st.audio(st.session_state.audio_bytes, format="audio/mp3")
                 with col_sp2:
                     if st.button("⏹ Stop", key="stop_medical"):
                         stop_speech()
@@ -619,6 +592,8 @@ elif page == "Symptom":
         with col1:
             if st.button("🔊 Speak Symptom", key="speak_symptom"):
                 speak_text(st.session_state._symptom_answer, lang_code)
+                if st.session_state.get("audio_bytes"):
+                    st.audio(st.session_state.audio_bytes, format="audio/mp3")
         with col2:
             if st.button("⏹ Stop", key="stop_symptom"):
                 stop_speech()
@@ -656,6 +631,8 @@ elif page == "Treatment":
         with col1:
             if st.button("🔊 Speak Treatment", key="speak_treatment"):
                 speak_text(st.session_state._treatment_answer, lang_code)
+                if st.session_state.get("audio_bytes"):
+                    st.audio(st.session_state.audio_bytes, format="audio/mp3")
         with col2:
             if st.button("⏹ Stop", key="stop_treatment"):
                 stop_speech()
@@ -699,6 +676,8 @@ elif page == "Meal Planner":
         with col1:
             if st.button("🔊 Speak Meal Plan", key="speak_meal"):
                 speak_text(st.session_state._meal_answer, lang_code)
+                if st.session_state.get("audio_bytes"):
+                    st.audio(st.session_state.audio_bytes, format="audio/mp3")
         with col2:
             if st.button("⏹ Stop", key="stop_meal"):
                 stop_speech()
@@ -749,6 +728,8 @@ elif page == "Recipe":
         with col1:
             if st.button("🔊 Speak Recipe", key="speak_recipe"):
                 speak_text(st.session_state._recipe_answer, lang_code)
+                if st.session_state.get("audio_bytes"):
+                    st.audio(st.session_state.audio_bytes, format="audio/mp3")
         with col2:
             if st.button("⏹ Stop", key="stop_recipe"):
                 stop_speech()
@@ -951,6 +932,8 @@ elif page == "Ayurvedic Remedies":
             with col1:
                 if st.button("🔊 Speak Remedy", key="speak_remedy"):
                     speak_text(answer, lang_code)
+                    if st.session_state.get("audio_bytes"):
+                        st.audio(st.session_state.audio_bytes, format="audio/mp3")
             with col2:
                 if st.button("⏹ Stop", key="stop_remedy"):
                     stop_speech()
@@ -1059,7 +1042,7 @@ elif page == "About Us":
                 <li><strong>Framework:</strong> Streamlit</li>
                 <li><strong>Image AI:</strong> CLIP (OpenAI)</li>
                 <li><strong>Translation:</strong> Google Translate API</li>
-                <li><strong>TTS:</strong> gTTS + pygame</li>
+                <li><strong>TTS:</strong> gTTS (via st.audio)</li>
                 <li><strong>PDF:</strong> ReportLab</li>
                 <li><strong>Data:</strong> Pandas, NumPy</li>
                 <li><strong>Visualization:</strong> Altair</li>
