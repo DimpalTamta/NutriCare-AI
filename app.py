@@ -359,19 +359,29 @@ def create_multi_color_chart(data_dict, title="Nutrient Values"):
     ).configure_title(color='#a5d6a7', fontSize=16)
     return chart
 
+# Remove pygame import and init
+# Remove import pygame
+# Remove pygame.mixer.init()
+
 def speak_text(text, lang="en"):
     if not text.strip():
         return
     try:
-        tts = gTTS(text, lang=lang)
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        pygame.mixer.music.load(fp)
-        pygame.mixer.music.play()
-        st.session_state.is_speaking = True
+        from voice.voice import get_speech_bytes
+        audio_bytes = get_speech_bytes(text, lang=lang)
+        if audio_bytes:
+            # Store audio in session state and display
+            st.session_state.audio_bytes = audio_bytes
+            st.session_state.audio_text = text
+            st.session_state.is_speaking = True
+            st.rerun()
     except Exception as e:
         st.warning(f"TTS error: {e}")
+
+def stop_speech():
+    st.session_state.audio_bytes = None
+    st.session_state.is_speaking = False
+    st.rerun()
 
 def stop_speech():
     pygame.mixer.music.stop()
