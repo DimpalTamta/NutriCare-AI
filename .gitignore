@@ -1,0 +1,9 @@
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+.env
+chat_history.db
+chat_history/
+reports/*.mp3
