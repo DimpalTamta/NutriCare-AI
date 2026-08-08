@@ -24,6 +24,9 @@ The application combines **Retrieval-Augmented Generation (RAG)**, **semantic se
 **https://nutricare-ai-llm.streamlit.app/**
 
 > The live application may have limited functionality depending on API availability and deployment resources.
+## 📸 Dashboard
+
+![NutriCare AI Dashboard](dashboard.png)
 
 ---
 
