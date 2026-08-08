@@ -28,6 +28,10 @@ The application combines **Retrieval-Augmented Generation (RAG)**, **semantic se
 
 ![NutriCare AI Dashboard](dashboard.png)
 
+## 📄 Project Documentation
+
+📘 [View Full Project Documentation](NutriCare-AI-Project-Documentation.pdf)
+
 ---
 
 ## ✨ Key Features
@@ -489,8 +493,6 @@ Example:
 ![NutriCare AI Dashboard](screenshots/dashboard.png)
 ```
 
-A **3–5 screenshot selection** is enough for the README. Your complete set of screenshots can remain in your academic documentation.
-
 ---
 
 # 🔐 Security
@@ -595,3 +597,5 @@ NutriCare AI demonstrates the integration of:
 ## 📜 License
 
 This project was developed for academic and educational purposes.
+
+
